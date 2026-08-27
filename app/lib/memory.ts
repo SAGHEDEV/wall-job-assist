@@ -4,6 +4,20 @@ import type { Application, ApplicationStyle, MemoryUsedItem, ProfileData } from 
 const PROFILE_QUERY = "[PROFILE] candidate professional profile";
 const APPLICATION_QUERY = "Show me the applications this candidate has created";
 
+function hashString(value: string): string {
+  let hash = 0;
+  for (const char of value) {
+    hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  }
+  return hash.toString(36);
+}
+
+function buildStableId(prefix: string, ...parts: string[]): string {
+  const source = parts.filter(Boolean).join("|");
+  const safe = source.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "item";
+  return `${prefix}-${safe.slice(0, 28)}-${hashString(source)}`;
+}
+
 function formatProfileMemory(profile: ProfileData): string {
   const style = profile.applicationStyle ?? {
     tone: "professional",
@@ -23,6 +37,7 @@ function formatProfileMemory(profile: ProfileData): string {
 
   return [
     "[PROFILE]",
+    `Created: ${profile.createdAt ?? new Date().toISOString()}`,
     `Name: ${profile.fullName || ""}`,
     `Role: ${profile.professionalTitle || ""}`,
     "",
@@ -115,6 +130,11 @@ function parseProfileMemory(text: string): ProfileData | null {
       continue;
     }
 
+    if (line.startsWith("Created:")) {
+      profile.createdAt = line.replace("Created:", "").trim();
+      continue;
+    }
+
     if (line.startsWith("Name:")) {
       profile.fullName = line.replace("Name:", "").trim();
       continue;
@@ -147,7 +167,14 @@ function parseProfileMemory(text: string): ProfileData | null {
       if (stripped.startsWith("Name:")) {
         const projectName = stripped.replace("Name:", "").trim();
         const existing = profile.projects ?? [];
-        const nextProject = { id: `project-${Date.now()}-${Math.random().toString(36).slice(2,8)}`, name: projectName, description: "", technologies: "", contribution: "", achievement: "" };
+        const nextProject = {
+          id: buildStableId("project", projectName, String(existing.length)),
+          name: projectName,
+          description: "",
+          technologies: "",
+          contribution: "",
+          achievement: "",
+        };
         profile.projects = [...existing, nextProject];
         continue;
       }
@@ -177,7 +204,14 @@ function parseProfileMemory(text: string): ProfileData | null {
       }
 
       if (stripped && !stripped.includes(":")) {
-        profile.projects = [...(profile.projects ?? []), { id: `project-${Date.now()}-${Math.random().toString(36).slice(2,8)}`, name: stripped, description: "", technologies: "", contribution: "", achievement: "" }];
+        profile.projects = [...(profile.projects ?? []), {
+          id: buildStableId("project", stripped, String((profile.projects ?? []).length)),
+          name: stripped,
+          description: "",
+          technologies: "",
+          contribution: "",
+          achievement: "",
+        }];
       }
       continue;
     }
@@ -221,6 +255,7 @@ function parseProfileMemory(text: string): ProfileData | null {
   }
 
   return {
+    createdAt: profile.createdAt ?? new Date().toISOString(),
     fullName: profile.fullName ?? "",
     professionalTitle: profile.professionalTitle ?? "",
     professionalSummary: profile.professionalSummary ?? "",
@@ -256,6 +291,10 @@ function parseApplicationMemory(text: string): Partial<Application> | null {
     if (!line) continue;
 
     if (line.startsWith("[APPLICATION]")) continue;
+    if (line.startsWith("ID:")) {
+      application.id = line.replace("ID:", "").trim();
+      continue;
+    }
     if (line.startsWith("Company:")) {
       application.company = line.replace("Company:", "").trim();
       continue;
@@ -313,7 +352,12 @@ function parseApplicationMemory(text: string): Partial<Application> | null {
   }));
 
   if (!application.company || !application.role) return null;
-  return application;
+
+  const fallbackId = buildStableId("application", application.company, application.role, application.date ?? "");
+  return {
+    ...application,
+    id: application.id ?? fallbackId,
+  };
 }
 
 function toMemoryUsedItems(results: Array<{ text?: string }>): MemoryUsedItem[] {
@@ -338,11 +382,22 @@ function toMemoryUsedItems(results: Array<{ text?: string }>): MemoryUsedItem[] 
 
 export async function getProfile(): Promise<ProfileData | null> {
   try {
-    const result = await memwal.recall({ query: PROFILE_QUERY, limit: 5 });
-    const candidate = (result?.results ?? []).find((entry) => (entry?.text ?? "").includes("[PROFILE]"));
-    if (!candidate?.text) return null;
+    const result = await memwal.recall({ query: PROFILE_QUERY, limit: 10 });
+    const parsed = (result?.results ?? [])
+      .map((entry) => entry?.text ?? "")
+      .filter((text) => text.includes("[PROFILE]"))
+      .map((text) => parseProfileMemory(text))
+      .filter((profile): profile is ProfileData => Boolean(profile));
 
-    return parseProfileMemory(candidate.text) ?? null;
+    if (parsed.length === 0) return null;
+
+    parsed.sort((a, b) => {
+      const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return bTime - aTime;
+    });
+
+    return parsed[0];
   } catch {
     return null;
   }
@@ -384,11 +439,14 @@ export async function saveApplication(application: {
   memoriesUsed: MemoryUsedItem[];
   createdAt?: string;
 }): Promise<void> {
+  const createdAt = application.createdAt ?? new Date().toISOString();
+  const applicationId = buildStableId("application", application.company || "Not specified", application.role || "Not specified", createdAt);
   const memory = [
     "[APPLICATION]",
+    `ID: ${applicationId}`,
     `Company: ${application.company || "Not specified"}`,
     `Role: ${application.role || "Not specified"}`,
-    `Created: ${application.createdAt ?? new Date().toISOString()}`,
+    `Created: ${createdAt}`,
     "",
     "JOB DESCRIPTION:",
     application.jobDescription.trim(),
@@ -412,7 +470,7 @@ export async function getApplications(): Promise<Application[]> {
       .map((entry) => parseApplicationMemory(entry?.text ?? ""))
       .filter((app): app is Application => Boolean(app && app.company && app.role))
       .map((app) => ({
-        id: app.id ?? `app-${Math.random().toString(36).slice(2, 10)}`,
+        id: app.id ?? buildStableId("application", app.company ?? "", app.role ?? "", app.date ?? ""),
         company: app.company ?? "",
         role: app.role ?? "",
         date: app.date ?? new Date().toISOString(),

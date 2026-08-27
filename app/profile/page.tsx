@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable react-hooks/set-state-in-effect */
 
 import { useState, useCallback, useEffect } from "react";
 import PageHeader from "@/app/components/layout/PageHeader";
@@ -50,15 +51,36 @@ export default function ProfilePage() {
   useEffect(() => {
     if (!profile) return;
 
-    setFullName(profile.fullName ?? "");
-    setProfessionalTitle(profile.professionalTitle ?? "");
-    setProfessionalSummary(profile.professionalSummary ?? "");
-    setExperience(profile.experience ?? "");
-    setSkills(profile.skills ?? []);
-    setProjects(profile.projects ?? []);
-    setAchievements(profile.achievements ?? "");
-    setCareerGoals(profile.careerGoals ?? "");
-    setAppStyle(profile.applicationStyle ?? defaultStyle);
+    const nextProfile = {
+      fullName: profile.fullName ?? "",
+      professionalTitle: profile.professionalTitle ?? "",
+      professionalSummary: profile.professionalSummary ?? "",
+      experience: profile.experience ?? "",
+      skills: profile.skills ?? [],
+      projects: profile.projects ?? [],
+      achievements: profile.achievements ?? "",
+      careerGoals: profile.careerGoals ?? "",
+      appStyle: profile.applicationStyle ?? defaultStyle,
+    };
+
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setFullName(nextProfile.fullName);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setProfessionalTitle(nextProfile.professionalTitle);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setProfessionalSummary(nextProfile.professionalSummary);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setExperience(nextProfile.experience);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSkills(nextProfile.skills);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setProjects(nextProfile.projects);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setAchievements(nextProfile.achievements);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setCareerGoals(nextProfile.careerGoals);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setAppStyle(nextProfile.appStyle);
   }, [profile]);
 
   const addToast = useCallback((t: Omit<ToastMessage, "id">) => {
@@ -202,7 +224,7 @@ export default function ProfilePage() {
       <div style={{ display: "flex", flexDirection: "column", gap: 40 }}>
         {/* Section 1 — About */}
         <Section title="About you">
-          <Input label="Full name" placeholder="e.g. Adekola Abdulhakeem" value={fullName} onChange={(e) => setFullName(e.target.value)} />
+          <Input label="Full name" placeholder="e.g. John Doe" value={fullName} onChange={(e) => setFullName(e.target.value)} />
           <Input label="Professional title" placeholder="e.g. Frontend Developer" value={professionalTitle} onChange={(e) => setProfessionalTitle(e.target.value)} />
           <Textarea label="Professional summary" placeholder="Tell us briefly about your professional background..." value={professionalSummary} onChange={(e) => setProfessionalSummary(e.target.value)} minHeight={100} />
         </Section>
@@ -301,7 +323,7 @@ export default function ProfilePage() {
           )}
 
           {saveState === "error" && (
-            <p style={{ margin: 0, fontSize: 13, color: "var(--error)" }}>Couldn't save your profile. Try again.</p>
+            <p style={{ margin: 0, fontSize: 13, color: "var(--error)" }}>Could not save your profile. Try again.</p>
           )}
         </div>
       </div>

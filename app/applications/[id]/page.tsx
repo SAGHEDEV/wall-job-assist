@@ -21,17 +21,24 @@ export default function ApplicationDetailPage() {
       return;
     }
 
-    fetch("/api/applications")
+    const controller = new AbortController();
+
+    fetch("/api/applications", { signal: controller.signal })
       .then((res) => res.json())
       .then((json) => {
+        if (controller.signal.aborted) return;
         const found = (json.applications ?? []).find((item: Application) => item.id === id) ?? null;
         setApplication(found);
         setLoading(false);
       })
       .catch(() => {
-        setApplication(null);
-        setLoading(false);
+        if (!controller.signal.aborted) {
+          setApplication(null);
+          setLoading(false);
+        }
       });
+
+    return () => controller.abort();
   }, [params, router]);
 
   if (loading) {

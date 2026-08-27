@@ -1,36 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateText } from "ai";
 import { withMemWal } from "@mysten-incubation/memwal/ai";
-import { openai } from "@ai-sdk/openai";
+import { createOpenAI, openai as defaultOpenAI } from "@ai-sdk/openai";
 import { memwal } from "@/app/lib/memwal";
 import type { MemoryUsedItem } from "@/app/types";
 
-const model = withMemWal(openai("gpt-4o"), {
+const openrouter = createOpenAI({
+  apiKey: process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY,
+  baseURL: "https://openrouter.ai/api/v1",
+  headers: {
+    "HTTP-Referer": process.env.APP_URL ?? "http://localhost:3000",
+    "X-Title": "Waljob Assist",
+  },
+});
+
+const provider = process.env.OPENROUTER_API_KEY ? openrouter : defaultOpenAI;
+const modelId = process.env.OPENROUTER_API_KEY ? "openai/gpt-4o-mini" : "gpt-4o";
+
+const model = withMemWal(provider(modelId), {
   key: process.env.MEMWAL_PRIVATE_KEY!,
   accountId: process.env.MEMWAL_ACCOUNT_ID!,
   serverUrl: process.env.MEMWAL_SERVER_URL ?? "https://relayer-staging.memory.walrus.xyz",
   namespace: "waljob-assist-v1",
 });
-
-function toMemoryUsedItems(results: Array<{ text?: string }>, fallbackLabel = "Professional memory"): MemoryUsedItem[] {
-  const seen = new Set<string>();
-  const memories: MemoryUsedItem[] = [];
-
-  results.forEach((result, index) => {
-    const text = result?.text?.trim();
-    if (!text || seen.has(text)) return;
-
-    seen.add(text);
-    memories.push({
-      id: `mem-${index}-${Math.random().toString(36).slice(2, 8)}`,
-      label: index === 0 ? "Relevant experience" : fallbackLabel,
-      excerpt: text.length > 140 ? `${text.slice(0, 140)}…` : text,
-      category: index === 0 ? "experience" : "memory",
-    });
-  });
-
-  return memories;
-}
 
 export async function POST(req: NextRequest) {
   try {
@@ -108,24 +100,17 @@ export async function POST(req: NextRequest) {
 
     const coverLetter = result.text.trim();
 
-    const applicationMemory = `
-[APPLICATION]
-Company: ${company || "Not specified"}
-Role: ${role || "Not specified"}
-Created: ${new Date().toISOString()}
-
-JOB DESCRIPTION:
-${jobDescription.trim()}
-
-COVER LETTER:
-${coverLetter}
-
-MEMORIES USED:
-${memories.map((memory) => `- ${memory.excerpt}`).join("\n")}
-`;
-
-    const saveResult = await memwal.remember(applicationMemory);
-    await memwal.waitForRememberJob(saveResult.job_id);
+    if (!coverLetter.trim()) {
+      return NextResponse.json(
+        {
+          success: false,
+          coverLetter: "",
+          memoriesUsed: [],
+          error: "The generator returned an empty cover letter.",
+        },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({
       success: true,

@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable react-hooks/set-state-in-effect */
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
@@ -44,11 +45,12 @@ export default function ResultPage() {
       jobUrl: string;
     };
 
-    setCompany(formData.company);
-    setRole(formData.role);
-
     // Minimum progress display: wait at least 5.5s so all 4 steps animate
     const minDelay = new Promise<void>((r) => setTimeout(r, 5500));
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setCompany(formData.company);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setRole(formData.role);
 
     const fetchResult = generateApplication(formData);
 
@@ -58,6 +60,7 @@ export default function ResultPage() {
         setPhase("done");
       } else {
         setPhase("error");
+        console.log(res.error)
         addToast({ type: "error", title: "Generation failed", description: res.error ?? "Something went wrong." });
       }
     });

@@ -11,13 +11,23 @@ export default function ApplicationsPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/applications")
+    const controller = new AbortController();
+
+    fetch("/api/applications", { signal: controller.signal })
       .then((r) => r.json())
       .then((d) => {
-        setApplications(d.applications ?? []);
-        setLoading(false);
+        if (!controller.signal.aborted) {
+          setApplications(d.applications ?? []);
+          setLoading(false);
+        }
       })
-      .catch(() => setLoading(false));
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
+      });
+
+    return () => controller.abort();
   }, []);
 
   return (

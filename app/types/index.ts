@@ -22,6 +22,7 @@ export interface ApplicationStyle {
 }
 
 export interface ProfileData {
+  createdAt?: string;
   fullName: string;
   professionalTitle: string;
   professionalSummary: string;

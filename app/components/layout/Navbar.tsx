@@ -6,8 +6,8 @@ import { useProfile } from "@/app/lib/profile-state";
 
 const navLinks = [
   { href: "/profile", label: "My Profile" },
-  { href: "/apply", label: "New Application" },
   { href: "/applications", label: "Applications" },
+  { href: "/apply", label: "New Application" },
 ];
 
 export default function Navbar() {
@@ -89,26 +89,40 @@ export default function Navbar() {
           </Link>
           {navLinks.map(({ href, label }) => {
             const isActive = pathname === href || pathname.startsWith(href + "/");
+            const isNewApplication = href === "/apply";
+
             return (
               <Link
                 key={href}
                 href={href}
                 style={{
                   fontSize: 13,
-                  fontWeight: isActive ? 500 : 400,
-                  color: isActive ? "var(--text-primary)" : "var(--text-secondary)",
+                  fontWeight: isActive ? 600 : 400,
+                  color: isNewApplication ? "var(--accent-fg)" : isActive ? "var(--text-primary)" : "var(--text-secondary)",
                   textDecoration: "none",
-                  padding: "5px 10px",
+                  padding: isNewApplication ? "8px 12px" : "5px 10px",
                   borderRadius: "var(--radius-sm)",
-                  background: isActive ? "var(--surface-1)" : "transparent",
+                  background: isNewApplication ? "var(--accent)" : isActive ? "var(--surface-1)" : "transparent",
+                  border: isNewApplication ? "1px solid transparent" : "1px solid transparent",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  lineHeight: 1,
+                  boxShadow: isNewApplication ? "0 1px 0 rgba(15, 23, 42, 0.08)" : "none",
                 }}
                 onMouseEnter={(e) => {
-                  if (!isActive)
-                    (e.target as HTMLElement).style.background = "var(--surface-1)";
+                  if (isNewApplication) {
+                    (e.target as HTMLElement).style.filter = "brightness(0.97)";
+                    return;
+                  }
+                  if (!isActive) (e.target as HTMLElement).style.background = "var(--surface-1)";
                 }}
                 onMouseLeave={(e) => {
-                  if (!isActive)
-                    (e.target as HTMLElement).style.background = "transparent";
+                  if (isNewApplication) {
+                    (e.target as HTMLElement).style.filter = "none";
+                    return;
+                  }
+                  if (!isActive) (e.target as HTMLElement).style.background = "transparent";
                 }}
               >
                 {label}

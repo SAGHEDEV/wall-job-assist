@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import PageHeader from "@/app/components/layout/PageHeader";
@@ -9,7 +9,6 @@ import Textarea from "@/app/components/ui/Textarea";
 import Button from "@/app/components/ui/Button";
 import Toast from "@/app/components/shared/Toast";
 import { useProfile } from "@/app/lib/profile-state";
-import { generateApplication } from "@/app/services/generate";
 import type { ToastMessage } from "@/app/types";
 
 export default function ApplyPage() {
@@ -21,12 +20,6 @@ export default function ApplyPage() {
   const [jobUrl, setJobUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
-
-  useEffect(() => {
-    if (profileStatus === "error") {
-      addToast({ type: "error", title: "Couldn't reach your professional memory", description: "Try again in a moment." });
-    }
-  }, [profileStatus]);
 
   const addToast = useCallback((t: Omit<ToastMessage, "id">) => {
     setToasts((prev) => [...prev, { ...t, id: Math.random().toString(36).slice(2) }]);
@@ -57,6 +50,21 @@ export default function ApplyPage() {
     return (
       <div style={{ maxWidth: 720, margin: "0 auto", padding: "48px 24px 80px" }}>
         <PageHeader eyebrow="New Application" title="Checking your professional memory..." subtitle="We’re verifying whether your profile is ready for personalization." />
+      </div>
+    );
+  }
+
+  if (profileStatus === "error") {
+    return (
+      <div style={{ maxWidth: 720, margin: "0 auto", padding: "48px 24px 80px" }}>
+        <PageHeader
+          eyebrow="New Application"
+          title="Your professional memory is unavailable."
+          subtitle="We could not reach your saved profile. Please try again in a moment."
+        />
+        <div style={{ marginTop: 20, padding: "16px 18px", border: "1px solid var(--border)", background: "var(--surface-0)", borderRadius: "var(--radius-md)", color: "var(--error)" }}>
+          We could not load your memory. Please refresh or return to your profile page and save it again.
+        </div>
       </div>
     );
   }
