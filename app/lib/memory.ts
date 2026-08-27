@@ -4,6 +4,25 @@ import type { Application, ApplicationStyle, MemoryUsedItem, ProfileData } from 
 const PROFILE_QUERY = "[PROFILE] candidate professional profile";
 const APPLICATION_QUERY = "Show me the applications this candidate has created";
 
+async function waitForMemoryIndexing(delayMs = 1500): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, delayMs));
+}
+
+function isTransientMemoryError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  const normalized = message.toLowerCase();
+
+  return (
+    normalized.includes("not signed in") ||
+    normalized.includes("auth_rejected") ||
+    normalized.includes("401") ||
+    normalized.includes("temporarily unavailable") ||
+    normalized.includes("indexing") ||
+    normalized.includes("upstream unavailable") ||
+    normalized.includes("server error")
+  );
+}
+
 function hashString(value: string): string {
   let hash = 0;
   for (const char of value) {
@@ -381,45 +400,66 @@ function toMemoryUsedItems(results: Array<{ text?: string }>): MemoryUsedItem[] 
 }
 
 export async function getProfile(): Promise<ProfileData | null> {
-  try {
-    const result = await memwal.recall({ query: PROFILE_QUERY, limit: 10 });
-    const parsed = (result?.results ?? [])
-      .map((entry) => entry?.text ?? "")
-      .filter((text) => text.includes("[PROFILE]"))
-      .map((text) => parseProfileMemory(text))
-      .filter((profile): profile is ProfileData => Boolean(profile));
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const result = await memwal.recall({ query: PROFILE_QUERY, limit: 10 });
+      const parsed = (result?.results ?? [])
+        .map((entry) => entry?.text ?? "")
+        .filter((text) => text.includes("[PROFILE]"))
+        .map((text) => parseProfileMemory(text))
+        .filter((profile): profile is ProfileData => Boolean(profile));
 
-    if (parsed.length === 0) return null;
+      if (parsed.length > 0) {
+        parsed.sort((a, b) => {
+          const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return bTime - aTime;
+        });
 
-    parsed.sort((a, b) => {
-      const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-      const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-      return bTime - aTime;
-    });
+        return parsed[0];
+      }
+    } catch (error) {
+      if (attempt === 2 || !isTransientMemoryError(error)) {
+        return null;
+      }
+    }
 
-    return parsed[0];
-  } catch {
-    return null;
+    if (attempt < 2) {
+      await waitForMemoryIndexing(1500 * (attempt + 1));
+    }
   }
+
+  return null;
 }
 
 export async function saveProfile(profile: ProfileData): Promise<{ success: boolean; savedSections: string[]; error?: string }> {
-  try {
-    const memory = formatProfileMemory(profile);
-    const job = await memwal.remember(memory);
-    await memwal.waitForRememberJob(job.job_id);
+  let lastError: unknown = null;
 
-    return {
-      success: true,
-      savedSections: ["about", "experience", "skills", "projects", "preferences", "goals"],
-    };
-  } catch (error) {
-    return {
-      success: false,
-      savedSections: [],
-      error: error instanceof Error ? error.message : "Unknown error",
-    };
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const memory = formatProfileMemory(profile);
+      const job = await memwal.remember(memory);
+      await memwal.waitForRememberJob(job.job_id);
+      await waitForMemoryIndexing(1500 * (attempt + 1));
+
+      return {
+        success: true,
+        savedSections: ["about", "experience", "skills", "projects", "preferences", "goals"],
+      };
+    } catch (error) {
+      lastError = error;
+      if (!isTransientMemoryError(error) || attempt === 2) {
+        break;
+      }
+      await waitForMemoryIndexing(1500 * (attempt + 1));
+    }
   }
+
+  return {
+    success: false,
+    savedSections: [],
+    error: lastError instanceof Error ? lastError.message : "Unknown error",
+  };
 }
 
 export async function recallRelevantMemories(query: string, limit = 5): Promise<MemoryUsedItem[]> {
@@ -460,6 +500,7 @@ export async function saveApplication(application: {
 
   const job = await memwal.remember(memory);
   await memwal.waitForRememberJob(job.job_id);
+  await waitForMemoryIndexing(1500);
 }
 
 export async function getApplications(): Promise<Application[]> {
