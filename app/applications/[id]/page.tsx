@@ -13,6 +13,7 @@ export default function ApplicationDetailPage() {
   const router = useRouter();
   const [application, setApplication] = useState<Application | null>(null);
   const [loading, setLoading] = useState(true);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     const id = params?.id;
@@ -63,6 +64,12 @@ export default function ApplicationDetailPage() {
   return (
     <div style={{ maxWidth: 1100, margin: "0 auto", padding: "48px 24px 80px" }}>
       <div style={{ marginBottom: 24 }}>
+        <Link href="/applications" style={{ textDecoration: "none" }}>
+          <Button variant="secondary" size="md">← Back to applications</Button>
+        </Link>
+      </div>
+
+      <div style={{ marginBottom: 24 }}>
         <p style={{ margin: 0, fontSize: 11, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--text-tertiary)" }}>
           Application history
         </p>
@@ -90,20 +97,28 @@ export default function ApplicationDetailPage() {
           </div>
 
           <div style={{ padding: "20px 24px", background: "var(--surface-0)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)" }}>
-            <p style={{ margin: "0 0 12px", fontSize: 11, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-tertiary)" }}>
-              Cover letter
-            </p>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+              <p style={{ margin: 0, fontSize: 11, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-tertiary)" }}>
+                Cover letter
+              </p>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={async () => {
+                  if (!application.coverLetter) return;
+                  await navigator.clipboard.writeText(application.coverLetter);
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 2000);
+                }}
+              >
+                {copied ? "Copied" : "Copy"}
+              </Button>
+            </div>
             <p style={{ margin: 0, whiteSpace: "pre-wrap", color: "var(--text-primary)", lineHeight: 1.8 }}>
               {application.coverLetter || "No cover letter stored."}
             </p>
           </div>
         </div>
-      </div>
-
-      <div style={{ marginTop: 24 }}>
-        <Link href="/applications" style={{ textDecoration: "none" }}>
-          <Button variant="secondary" size="md">← Back to applications</Button>
-        </Link>
       </div>
 
       <style>{`
