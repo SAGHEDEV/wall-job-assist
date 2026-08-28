@@ -17,7 +17,7 @@ export default function ApplicationsPage() {
       .then((r) => r.json())
       .then((d) => {
         if (!controller.signal.aborted) {
-          setApplications(d.applications ?? []);
+          setApplications((prev) => (Array.isArray(d.applications) && d.applications.length > 0 ? d.applications : prev));
           setLoading(false);
         }
       })

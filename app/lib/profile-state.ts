@@ -10,12 +10,20 @@ export function useProfile() {
   const [profileStatus, setProfileStatus] = useState<ProfileStatus>("checking");
 
   const refreshProfile = useCallback(async () => {
+    const previousProfile = profile;
+
     try {
       setProfileStatus("checking");
       const response = await fetch("/api/profile", { cache: "no-store" });
       const json = await response.json();
 
       if (!response.ok || !json?.success) {
+        if (previousProfile) {
+          setProfile(previousProfile);
+          setProfileStatus("profile-exists");
+          return;
+        }
+
         setProfile(null);
         setProfileStatus("error");
         return;
@@ -27,13 +35,25 @@ export function useProfile() {
         return;
       }
 
+      if (previousProfile) {
+        setProfile(previousProfile);
+        setProfileStatus("profile-exists");
+        return;
+      }
+
       setProfile(null);
       setProfileStatus("no-profile");
     } catch {
+      if (previousProfile) {
+        setProfile(previousProfile);
+        setProfileStatus("profile-exists");
+        return;
+      }
+
       setProfile(null);
       setProfileStatus("error");
     }
-  }, []);
+  }, [profile]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
